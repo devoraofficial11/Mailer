@@ -4,11 +4,13 @@ header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Headers: Content-Type");
 header("Content-Type: application/json");
 
+// Allow only POST
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     echo json_encode(["error" => "Invalid request method"]);
     exit;
 }
 
+// Read JSON from fetch()
 $data = json_decode(file_get_contents("php://input"), true);
 
 if (!$data) {
@@ -16,15 +18,16 @@ if (!$data) {
     exit;
 }
 
-$site = $data["site"] ?? "";
-$name = $data["name"] ?? "";
-$email = $data["email"] ?? "";
-$phone = $data["phone"] ?? "";
+/* FORM FIELDS */
+$site    = $data["site"] ?? "";
+$name    = $data["name"] ?? "";
+$email   = $data["email"] ?? "";
+$phone   = $data["phone"] ?? "";
 $company = $data["company"] ?? "";
 $subject = $data["subject"] ?? "";
 $message = nl2br($data["message"] ?? "");
 
-/* SELECT RECIPIENT + THEME */
+/* SITE-BASED ROUTING */
 if ($site === "Shri Bhagwati Polypack") {
     $to = "tirthgajera12345@gmail.com";
     $color = "#05aad3";
@@ -35,7 +38,7 @@ if ($site === "Shri Bhagwati Polypack") {
     $title = "Kalpataru Packaging Solution";
 }
 
-/* EMAIL BODY */
+/* EMAIL HTML BODY */
 $body = "
 <div style='font-family: Arial; padding:20px; border-left:4px solid {$color};'>
     <h2 style='color:{$color};'>{$title} - Contact Form</h2>
@@ -48,79 +51,36 @@ $body = "
 </div>
 ";
 
-/* SMTP SEND (NO PHPMailer) */
-$from = "devoraofficial11@gmail.com";
-$appPass = "jdwk tepl iwdc blxh";
+/* RESEND API KEY */
+$RESEND_API_KEY = "re_CBFFwbXr_4oLaFvXyzG6S2iF8UqWGzvtQ";
 
-$smtpHost = "smtp.gmail.com";
-$smtpPort = 587;
+/* API REQUEST PAYLOAD */
+$payload = [
+    "from" => "Website Forms <onboarding@resend.dev>",
+    "to" => [$to],
+    "subject" => $title . " - Contact Form",
+    "html" => $body
+];
 
-/* SMTP CONNECTION */
-$socket = fsockopen($smtpHost, $smtpPort, $errno, $errstr, 10);
-if (!$socket) {
-    echo json_encode(["error" => "Failed to connect to SMTP server"]);
-    exit;
+/* CURL REQUEST TO RESEND */
+$ch = curl_init("https://api.resend.com/emails");
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    "Authorization: Bearer " . $RESEND_API_KEY,
+    "Content-Type: application/json"
+]);
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+$response = curl_exec($ch);
+$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+
+/* RETURN RESPONSE */
+if ($httpCode == 200 || $httpCode == 202) {
+    echo json_encode(["success" => true, "msg" => "Mail Sent"]);
+} else {
+    echo json_encode(["error" => "Mail API Failed", "response" => $response]);
 }
-if (!$socket) {
-    echo json_encode(["error" => "SMTP connection failed"]);
-    exit;
-}
 
-function sendLine($socket, $cmd) {
-    fputs($socket, $cmd . "\r\n");
-}
-
-function getResp($socket) {
-    return fgets($socket, 512);
-}
-
-/* SMTP HANDSHAKE */
-getResp($socket);
-sendLine($socket, "EHLO localhost");
-getResp($socket);
-
-/* STARTTLS */
-sendLine($socket, "STARTTLS");
-getResp($socket);
-
-stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
-
-/* EHLO AGAIN */
-sendLine($socket, "EHLO localhost");
-getResp($socket);
-
-/* LOGIN */
-sendLine($socket, "AUTH LOGIN");
-getResp($socket);
-
-sendLine($socket, base64_encode($from));
-getResp($socket);
-
-sendLine($socket, base64_encode($appPass));
-getResp($socket);
-
-/* MAIL SEND */
-sendLine($socket, "MAIL FROM:<$from>");
-getResp($socket);
-
-sendLine($socket, "RCPT TO:<$to>");
-getResp($socket);
-
-sendLine($socket, "DATA");
-getResp($socket);
-
-$headers =
-"From: Website <{$from}>\r\n".
-"MIME-Version: 1.0\r\n".
-"Content-Type: text/html; charset=UTF-8\r\n".
-"Subject: {$title} - Contact Form\r\n\r\n";
-
-sendLine($socket, $headers . $body . "\r\n.");
-getResp($socket);
-
-/* QUIT */
-sendLine($socket, "QUIT");
-fclose($socket);
-
-echo json_encode(["success" => true]);
 ?>
