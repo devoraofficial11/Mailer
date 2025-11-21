@@ -56,7 +56,7 @@ $RESEND_API_KEY = "re_CBFFwbXr_4oLaFvXyzG6S2iF8UqWGzvtQ";
 
 /* API REQUEST PAYLOAD */
 $payload = [
-    "from" => "Website Forms <onboarding@resend.dev>",
+    "from" => "Contact Form <devoraofficial@gmail.com>",
     "to" => [$to],
     "subject" => $title . " - Contact Form",
     "html" => $body
