@@ -36,6 +36,9 @@ if ($site === "Shri Bhagwati Polypack") {
     $to = "kalpacksolution@gmail.com";
     $color = "#613D08";
     $title = "Kalpataru Packaging Solution";
+} else {
+    echo json_encode(["error" => "Unknown site"]);
+    exit;
 }
 
 /* EMAIL HTML BODY */
@@ -72,15 +75,23 @@ curl_setopt($ch, CURLOPT_POST, true);
 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 
+/* Execute */
 $response = curl_exec($ch);
+$curlErr = curl_error($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
-/* RETURN RESPONSE */
-if ($httpCode == 200 || $httpCode == 202) {
+/* DEBUG LOG (Optional) */
+file_put_contents("resend_debug.txt", date("Y-m-d H:i:s") . " | HTTP: $httpCode | Curl Error: $curlErr | Response: $response\n", FILE_APPEND);
+
+/* RETURN RESPONSE TO JS */
+if ($curlErr) {
+    echo json_encode(["error" => "Curl error: $curlErr"]);
+} else if ($httpCode == 200 || $httpCode == 202) {
     echo json_encode(["success" => true, "msg" => "Mail Sent"]);
 } else {
-    echo json_encode(["error" => "Mail API Failed", "response" => $response]);
+    $respDecoded = json_decode($response, true);
+    $errMsg = $respDecoded['message'] ?? $response;
+    echo json_encode(["error" => "Mail API Failed: $errMsg", "httpCode" => $httpCode]);
 }
-
 ?>
