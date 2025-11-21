@@ -1,86 +1,126 @@
 <?php
+
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Headers: Content-Type");
 header("Content-Type: application/json");
 
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {
-    echo json_encode(['error' => 'Invalid request method']);
+    echo json_encode(["error" => "Invalid request method"]);
     exit;
 }
 
-require 'vendor/autoload.php';
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
-
-// GET JSON BODY
-$rawData = file_get_contents("php://input");
-$data = json_decode($rawData, true);
+$data = json_decode(file_get_contents("php://input"), true);
 
 if (!$data) {
-    echo json_encode(['error' => 'Invalid JSON']);
+    echo json_encode(["error" => "Invalid JSON"]);
     exit;
 }
 
 $site = $data["site"] ?? "";
-$name = htmlspecialchars($data["name"] ?? "");
-$email = htmlspecialchars($data["email"] ?? "");
-$phone = htmlspecialchars($data["phone"] ?? "");
-$company = htmlspecialchars($data["company"] ?? "");
-$subject = htmlspecialchars($data["subject"] ?? "");
-$message = nl2br(htmlspecialchars($data["message"] ?? ""));
+$name = $data["name"] ?? "";
+$email = $data["email"] ?? "";
+$phone = $data["phone"] ?? "";
+$company = $data["company"] ?? "";
+$subject = $data["subject"] ?? "";
+$message = nl2br($data["message"] ?? "");
 
-// SELECT THEME & RECIPIENT BASED ON SITE
+/* SELECT RECIPIENT + THEME */
 if ($site === "Shri Bhagwati Polypack") {
-    $themeColor = "#05aad3";
-    $toEmail = "tirthgajera12345@gmail.com";  // CHANGE THIS
-    $title = "Shri Bhagwati Polypack - Contact Form";
+    $to = "tirthgajera12345@gmail.com";
+    $color = "#05aad3";
+    $title = "Shri Bhagwati Polypack";
 } else {
-    $themeColor = "#613D08";  // Primary Kalpataru
-    $secondary = "#30852C";   // Secondary Kalpataru
-    $toEmail = "tirthgajera12345@gmail.com"; // CHANGE THIS
-    $title = "Kalpataru Packaging Solution - Contact Form";
+    $to = "tirthgajera12345@gmail.com";
+    $color = "#613D08";
+    $title = "Kalpataru Packaging Solution";
 }
 
-try {
-    $mail = new PHPMailer(true);
-    $mail->isSMTP();
-    $mail->Host = "smtp.gmail.com";
-    $mail->SMTPAuth = true;
-    $mail->Username = "devoraofficial11@gmail.com"; 
-    $mail->Password = "jdwk tepl iwdc blxh";  
-    $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
-    $mail->Port = 465;
+/* EMAIL BODY */
+$body = "
+<div style='font-family: Arial; padding:20px; border-left:4px solid {$color};'>
+    <h2 style='color:{$color};'>{$title} - Contact Form</h2>
+    <p><strong>Name:</strong> {$name}</p>
+    <p><strong>Email:</strong> {$email}</p>
+    <p><strong>Phone:</strong> {$phone}</p>
+    <p><strong>Company:</strong> {$company}</p>
+    <p><strong>Subject:</strong> {$subject}</p>
+    <p><strong>Message:</strong><br>{$message}</p>
+</div>
+";
 
-    $mail->setFrom("devoraofficial11@gmail.com", $site);
-    $mail->addAddress($toEmail);
+/* SMTP SEND (NO PHPMailer) */
+$from = "devoraofficial11@gmail.com";
+$appPass = "jdwk tepl iwdc blxh";
 
-    $mail->isHTML(true);
-    $mail->Subject = "$title";
+$smtpHost = "smtp.gmail.com";
+$smtpPort = 587;
 
-    // HTML DESIGN
-    $mail->Body = '
-    <div style="font-family:Arial;padding:20px;border-left:5px solid '.$themeColor.';">
-        <h2 style="color:'.$themeColor.';">'.$title.'</h2>
-        
-        <table cellpadding="10" cellspacing="0" border="1" style="border-collapse:collapse;width:100%;">
-            <tr><td><strong>Name</strong></td><td>'.$name.'</td></tr>
-            <tr><td><strong>Email</strong></td><td>'.$email.'</td></tr>
-            <tr><td><strong>Phone</strong></td><td>'.$phone.'</td></tr>
-            <tr><td><strong>Company</strong></td><td>'.$company.'</td></tr>
-            <tr><td><strong>Subject</strong></td><td>'.$subject.'</td></tr>
-            <tr><td><strong>Message</strong></td><td>'.$message.'</td></tr>
-        </table>
-
-        <p style="margin-top:20px;color:'.$themeColor.';">
-            Sent from: <strong>'.$site.'</strong>
-        </p>
-    </div>';
-
-    $mail->send();
-
-    echo json_encode(['success' => true]);
-} 
-catch (Exception $e) {
-    echo json_encode(['error' => $mail->ErrorInfo]);
+/* SMTP CONNECTION */
+$socket = fsockopen($smtpHost, $smtpPort, $errno, $errstr, 10);
+if (!$socket) {
+    echo json_encode(["error" => "Failed to connect to SMTP server"]);
+    exit;
 }
+if (!$socket) {
+    echo json_encode(["error" => "SMTP connection failed"]);
+    exit;
+}
+
+function sendLine($socket, $cmd) {
+    fputs($socket, $cmd . "\r\n");
+}
+
+function getResp($socket) {
+    return fgets($socket, 512);
+}
+
+/* SMTP HANDSHAKE */
+getResp($socket);
+sendLine($socket, "EHLO localhost");
+getResp($socket);
+
+/* STARTTLS */
+sendLine($socket, "STARTTLS");
+getResp($socket);
+
+stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+
+/* EHLO AGAIN */
+sendLine($socket, "EHLO localhost");
+getResp($socket);
+
+/* LOGIN */
+sendLine($socket, "AUTH LOGIN");
+getResp($socket);
+
+sendLine($socket, base64_encode($from));
+getResp($socket);
+
+sendLine($socket, base64_encode($appPass));
+getResp($socket);
+
+/* MAIL SEND */
+sendLine($socket, "MAIL FROM:<$from>");
+getResp($socket);
+
+sendLine($socket, "RCPT TO:<$to>");
+getResp($socket);
+
+sendLine($socket, "DATA");
+getResp($socket);
+
+$headers =
+"From: Website <{$from}>\r\n".
+"MIME-Version: 1.0\r\n".
+"Content-Type: text/html; charset=UTF-8\r\n".
+"Subject: {$title} - Contact Form\r\n\r\n";
+
+sendLine($socket, $headers . $body . "\r\n.");
+getResp($socket);
+
+/* QUIT */
+sendLine($socket, "QUIT");
+fclose($socket);
+
+echo json_encode(["success" => true]);
 ?>
