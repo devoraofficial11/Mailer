@@ -29,11 +29,11 @@ $message = nl2br($data["message"] ?? "");
 
 /* SITE-BASED ROUTING */
 if ($site === "Shri Bhagwati Polypack") {
-    $to = "tirthgajera12345@gmail.com";
+    $to = "shreeji.polypack@gmail.com";
     $color = "#05aad3";
     $title = "Shri Bhagwati Polypack";
-} else {
-    $to = "tirthgajera12345@gmail.com";
+} else if ($site === "Kalpataru") {
+    $to = "kalpacksolution@gmail.com";
     $color = "#613D08";
     $title = "Kalpataru Packaging Solution";
 }
